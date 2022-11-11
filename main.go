@@ -41,7 +41,7 @@ var (
 	clients  = make(map[string]Client)
 	leaving  = make(chan Message)
 	messages = make(chan Message)
-	// join     = make(chan Message)
+	join     = make(chan Message)
 )
 
 type Client struct {
@@ -65,10 +65,10 @@ func handleConnection(conn net.Conn) {
 		addr: conn.RemoteAddr().Network(),
 		conn: conn,
 	}
+	clients[username] = tempClient
 	t := time.Now().Format("2006-01-02 15:04:05")
 	fmt.Fprintf(conn, "[%s][%s]:", t, username)
-	clients[username] = tempClient
-	// join <- newMessage("has joined our chat...", conn, tempClient, t)
+	join <- newMessage("has joined our chat...", conn, tempClient, t)
 
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
@@ -78,7 +78,7 @@ func handleConnection(conn net.Conn) {
 	}
 	delete(clients, conn.RemoteAddr().String())
 
-	leaving <- newMessage("\nhas left our chat...", conn, tempClient, t)
+	leaving <- newMessage("has left our chat...", conn, tempClient, t)
 
 	conn.Close()
 }
@@ -95,20 +95,24 @@ func newMessage(msg string, conn net.Conn, cl Client, time string) Message {
 func broadcaster() {
 	for {
 		select {
-		// case msg := <-join:
-		// 	for _, client := range clients {
-		// 		fmt.Fprintln(client.conn, msg.userName, msg.text)
-		// 	}
-		case msg := <-messages:
-			for _, val := range clients {
-				if val.name != msg.userName {
-					fmt.Fprintf(val.conn, "\n[%s][%s]: %s\n", msg.time, msg.userName, msg.text)
+		case msg := <-join:
+			for _, client := range clients {
+				if client.name != msg.userName {
+					fmt.Fprintf(client.conn, "\n%s %s\n[%s][%s]:", msg.userName, msg.text, msg.time, client.name)
 				}
-				fmt.Fprintf(val.conn, "[%s][%s]: ", msg.time, val.name)
+			}
+		case msg := <-messages:
+			for _, client := range clients {
+				if client.name != msg.userName {
+					fmt.Fprintf(client.conn, "\n[%s][%s]: %s\n", msg.time, msg.userName, msg.text)
+				}
+				fmt.Fprintf(client.conn, "[%s][%s]: ", msg.time, client.name)
 			}
 		case msg := <-leaving:
 			for _, client := range clients {
-				fmt.Fprintln(client.conn, msg.userName, msg.text)
+				if client.name != msg.userName {
+					fmt.Fprintf(client.conn, "\n%s %s\n[%s][%s]:", msg.userName, msg.text, msg.time, client.name)
+				}
 			}
 		}
 	}
