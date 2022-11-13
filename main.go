@@ -105,6 +105,7 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 		mutex.Unlock()
 		return
 	}
+
 	mutex.Unlock()
 	t := time.Now().Format("2006-01-02 15:04:05")
 	mutex.Lock()
@@ -130,10 +131,10 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 		mutex.Unlock()
 	}
 	mutex.Lock()
-	delete(clients, conn.RemoteAddr().String())
+	delete(clients, username)
 	leaving <- newMessage("has left our chat...", conn, tempClient, t)
-	mutex.Unlock()
 	conn.Close()
+	mutex.Unlock()
 }
 
 func newMessage(msg string, conn net.Conn, cl Client, time string) Message {
