@@ -90,6 +90,7 @@ type Message struct {
 func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 	welcome(conn)
 	username := getName(conn)
+
 	tempClient := Client{
 		name: username,
 		addr: conn.RemoteAddr().String(),
@@ -97,7 +98,6 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 	}
 	mutex.Lock()
 	clients[username] = tempClient
-
 	if len(clients) > 10 {
 		tempClient.conn.Write([]byte("Maximum 10 users"))
 		delete(clients, username)
@@ -116,6 +116,11 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		time := time.Now().Format("2006-01-02 15:04:05")
+		if input.Text() == "" {
+			fmt.Fprintf(conn, "you can't send empty messages\n")
+			fmt.Fprintf(conn, "[%s][%s]:", time, username)
+			continue
+		}
 		text := fmt.Sprintf("[%s][%s]:%s\n", time, username, input.Text())
 		mutex.Lock()
 		historytext = append(historytext, text)
@@ -186,10 +191,10 @@ func welcome(conn net.Conn) {
 	}
 	strWelcome := (string(file))
 	conn.Write([]byte("Welcome to TCP-Chat!\n" + strWelcome + "\n"))
-	conn.Write([]byte("[Enter your name]:"))
 }
 
 func getName(conn net.Conn) string {
+	conn.Write([]byte("[Enter your name]:"))
 	data, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
 		fmt.Println(err)
@@ -197,6 +202,15 @@ func getName(conn net.Conn) string {
 	}
 
 	temp := strings.TrimSpace(string(data))
+	if temp == "" || len(temp) == 0 {
+		return getName(conn)
+	}
+	for i, _ := range clients {
+		if i == temp {
+			fmt.Fprintf(conn, "User already exist\n")
+			return getName(conn)
+		}
+	}
 	return temp
 }
 
