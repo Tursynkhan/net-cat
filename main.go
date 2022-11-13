@@ -90,7 +90,6 @@ type Message struct {
 func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 	welcome(conn)
 	username := getName(conn)
-
 	tempClient := Client{
 		name: username,
 		addr: conn.RemoteAddr().String(),
@@ -99,7 +98,7 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 	mutex.Lock()
 	clients[username] = tempClient
 	if len(clients) > 10 {
-		tempClient.conn.Write([]byte("Maximum 10 users"))
+		tempClient.conn.Write([]byte("Chat is full!"))
 		delete(clients, username)
 		tempClient.conn.Close()
 		mutex.Unlock()
@@ -120,6 +119,9 @@ func handleConnection(conn net.Conn, mutex *sync.Mutex) {
 		if input.Text() == "" {
 			fmt.Fprintf(conn, "you can't send empty messages\n")
 			fmt.Fprintf(conn, "[%s][%s]:", time, username)
+			continue
+		}
+		if isCorrect(input.Text(), conn, time, username) == false {
 			continue
 		}
 		text := fmt.Sprintf("[%s][%s]:%s\n", time, username, input.Text())
@@ -204,7 +206,14 @@ func getName(conn net.Conn) string {
 
 	temp := strings.TrimSpace(string(data))
 	if temp == "" || len(temp) == 0 {
+		fmt.Fprintln(conn, "Incorrect input")
 		return getName(conn)
+	}
+	for _, w := range temp {
+		if w < 32 || w > 127 {
+			fmt.Fprintln(conn, "Incorrect input")
+			return getName(conn)
+		}
 	}
 	for i, _ := range clients {
 		if i == temp {
@@ -217,4 +226,15 @@ func getName(conn net.Conn) string {
 
 func clear(a string) string {
 	return "\r" + strings.Repeat(" ", len(a)) + "\r"
+}
+
+func isCorrect(s string, conn net.Conn, time string, username string) bool {
+	for _, w := range s {
+		if w < 32 || w > 127 {
+			fmt.Fprintln(conn, "Incorrect input")
+			fmt.Fprintf(conn, "[%s][%s]:", time, username)
+			return false
+		}
+	}
+	return true
 }
